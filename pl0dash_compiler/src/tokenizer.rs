@@ -197,11 +197,11 @@ impl Tokenizer {
             }
         }
     }
-
+/*
     fn _tokenize_symbol(&self) -> Token {
 
     }
-/*
+
     fn _peek_next_byte(&self) -> Option<u8> {
         match reader.fill_buf() {
             Ok(buf) => {
