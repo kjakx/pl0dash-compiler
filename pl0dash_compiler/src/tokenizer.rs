@@ -129,12 +129,12 @@ impl Tokenizer {
         }
     }
 
-    fn _read_next_byte(&self) -> Result<_, TokenizerError> {
+    fn _read_next_byte(&self) -> Result<(), TokenizerError> {
         let mut one_byte = [0; 1];
         match reader.read_exact(&mut one_byte) {
             Ok(_) => {
                 self.current_byte = one_byte[0];
-                Ok()
+                Ok(())
             },
             Err(ErrorKind::UnexpectedEOF) => {
                 Err(ReachedEOF)
@@ -157,13 +157,14 @@ impl Tokenizer {
             self._read_next_byte();
             match self.current_byte {
                 b'0'..=b'9' => {
-                    digits.push(*d);
+                    digits.push(self.current_byte);
                 },
                 _ => {
                     break;
                 }
             }
         }
+        self._read_next_byte();
 
         let num = digits
             .into_iter()
@@ -186,6 +187,7 @@ impl Tokenizer {
                 }
             }
         }
+        self._read_next_byte();
 
         let word = std::str::from_utf8(&chars).unwrap();
         match Keyword::try_from(word) {
@@ -260,10 +262,10 @@ mod tests {
                     Some(t) => {
                         match t {
                             Token::Keyword(kw) => {
-                                writeln!(w, "<keyword> {} </keyword>", kw).unwrap();
+                                writeln!(w, "<keyword> {} </keyword>", kw.into()).unwrap();
                             },
                             Token::Symbol(sym) => {
-                                writeln!(w, "<symbol> {} </symbol>", sym).unwrap();
+                                writeln!(w, "<symbol> {} </symbol>", sym.into()).unwrap();
                             },
                             Token::Identifier(s) => {
                                 writeln!(w, "<identifier> {} </identifier>", s).unwrap();
