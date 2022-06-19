@@ -11,6 +11,7 @@ pub enum Token {
     Symbol(Symbol),
     Identifier(String),
     Number(i32),
+    Undefined
 }
 
 pub struct Tokenizer {
@@ -21,6 +22,7 @@ pub struct Tokenizer {
 pub enum TokenizerError {
     ReachedEOF,
     NoMoreToken,
+    UndefinedToken,
     Unrecoverable,
 }
 
@@ -36,6 +38,12 @@ impl Tokenizer {
     }
 
     pub fn get_next_token(&self) -> Option<Token> {
+        b'\n' => {
+            self.get_next_token()
+        },
+        while self.curent_byte.is_ascii_whitespace() {
+            self._read_next_byte();
+        }
         match CharClass::from_u8(self.current_byte) {
             CharClass::Digit => {
                 Some(self._tokenize_number())
@@ -44,21 +52,54 @@ impl Tokenizer {
                 Some(self._tokenize_identifier())
             },
             CharClass::Colon => {
-                unimplemented!();
+                self._read_next_byte();
+                match CharClass::from_u8(self.current_byte) {
+                    CharClass::Equal => {
+                        self._read_next_byte();
+                        Some(Token::Symbol(Symbol::Assign))
+                    },
+                    _ => {
+                        Some(Token::Undefined)
+                    }
+                }
             },
             CharClass::Lss => {
-                unimplemented!();
+                self._read_next_byte();
+                match CharClass::from_u8(self.current_byte) {
+                    CharClass::Equal => {
+                        self._read_next_byte();
+                        Some(Token::Symbol(Symbol::LssEq))
+                    },
+                    CharClass::Gtr => {
+                        self._read_next_byte();
+                        Some(Token::Symbol(Symbol::NotEq))
+                    },
+                    _ => {
+                        Some(Token::Symbol(Symbol::Lss))
+                    }
+                }
             },
             CharClass::Gtr => {
-                unimplemented!();
+                self._read_next_byte();
+                match CharClass::from_u8(self.current_byte) {
+                    CharClass::Equal => {
+                        self._read_next_byte();
+                        Some(Token::Symbol(Symbol::GtrEq))
+                    },
+                    _ => {
+                        Some(Token::Symbol(Symbol::Gtr))
+                    }
+                }
             },
             Char::Slash => {
-                match CharClass::from_u8(self._read_next_byte()) {
+                self._read_next_byte();
+                match CharClass::from_u8(self.current_byte) {
                     CharClass::Aster => { /* comment */
                         loop {
                             self._read_until(b'*');
                             self._read_next_byte();
                             if self.current_byte == b'/' {
+                                self._read_next_byte();
                                 break;
                             }
                         }
@@ -69,25 +110,10 @@ impl Tokenizer {
                     }
                 }
             },
-            // if a symbol, it is a symbol token or a comment.
-            Char::Other => {
-                                    // skip newline and ascii whitespace
-                b'\n' => {
-                    self.get_next_token()
-                },
-                b if b.is_ascii_whitespace() => {
-                    self.get_next_token()
-                },
-                match Symbol::from_u8(c) {
+            _ => {
+                match Symbol::from_u8(self.current_byte) {
                     Ok(sym) => {
-                        match sym {
-                            // If c is a /(slash), the next byte should be checked.
-                            
-                            // If the other symbol, it can immediately be added to tokens as a symbol.
-                            _ => {
-                                tokens.push(Token::Symbol(Symbol::from_u8(c).unwrap()));
-                            }
-                        }
+                        tokens.push(Token::Symbol(sym));
                     },
                     Err(e) => {
                         panic!("unexpected error occurred while tokenizing: {}", e);
@@ -107,6 +133,7 @@ impl Tokenizer {
         let mut one_byte = [0; 1];
         match reader.read_exact(&mut one_byte) {
             Ok(_) => {
+                self.current_byte = one_byte[0];
                 Ok()
             },
             Err(ErrorKind::UnexpectedEOF) => {
@@ -230,22 +257,26 @@ mod tests {
             writeln!(w, "<tokens>").unwrap();
             'export_xml: loop {
                 match t.get_next_token() {
-                    Token::Keyword(kw) => {
-                        writeln!(w, "<keyword> {} </keyword>", kw).unwrap();
+                    Some(t) => {
+                        match t {
+                            Token::Keyword(kw) => {
+                                writeln!(w, "<keyword> {} </keyword>", kw).unwrap();
+                            },
+                            Token::Symbol(sym) => {
+                                writeln!(w, "<symbol> {} </symbol>", sym).unwrap();
+                            },
+                            Token::Identifier(s) => {
+                                writeln!(w, "<identifier> {} </identifier>", s).unwrap();
+                            },
+                            Token::Number(i) => {
+                                writeln!(w, "<number> {} </number>", i).unwrap();
+                            },
+                            _ => {
+                                panic!("undefined symbol");
+                            }
+                        }
                     },
-                    Token::Symbol(sym) => {
-                        writeln!(w, "<symbol> {} </symbol>", sym).unwrap();
-                    },
-                    Token::Identifier(s) => {
-                        writeln!(w, "<identifier> {} </identifier>", s).unwrap();
-                    },
-                    Token::IntConst(i) => {
-                        writeln!(w, "<integerConstant> {} </integerConstant>", i).unwrap();
-                    },
-                    Token::StringConst(s) => {
-                        writeln!(w, "<stringConstant> {} </stringConstant>", s).unwrap();
-                    },
-                    Token::Empty() => { break 'export_xml; }
+                    None => { break 'export_xml; }
                 }
             }
             writeln!(w, "</tokens>").unwrap();
