@@ -1,5 +1,5 @@
 use std::fmt;
-use std::str::FromStr;
+use std::convert::TryFrom;
 
 #[derive(Debug, Clone)]
 pub struct UndefinedKeywordError;

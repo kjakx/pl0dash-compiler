@@ -1,4 +1,5 @@
 use std::fmt;
+use std::convert::TryFrom;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Symbol {
