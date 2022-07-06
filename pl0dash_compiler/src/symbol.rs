@@ -1,4 +1,5 @@
 use std::fmt;
+use crate::char_class::*;
 use std::convert::TryFrom;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -30,10 +31,10 @@ impl fmt::Display for UndefinedSymbol {
     }
 }
 
-impl TryFrom<&[u8]> for Symbol {
+impl TryFrom<CharClass> for Symbol {
     type Error = UndefinedSymbol;
 
-    fn try_from(b: &[u8]) -> Result<Self, Self::Error> {
+    fn try_from(b: CharClass) -> Result<Self, Self::Error> {
         match b {
             CharClass::Plus      => Ok(Symbol::Plus),
             CharClass::Minus     => Ok(Symbol::Minus),
