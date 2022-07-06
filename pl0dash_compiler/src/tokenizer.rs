@@ -5,6 +5,7 @@ use crate::keyword::*;
 use crate::symbol::*;
 use crate::char_class::*;
 use std::convert::TryFrom;
+use std::fmt;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token {
@@ -20,6 +21,7 @@ pub struct Tokenizer {
     current_byte: u8,
 }
 
+#[derive(Debug)]
 pub enum TokenizerError {
     ReachedEOF,
     NoMoreToken,
@@ -27,20 +29,36 @@ pub enum TokenizerError {
     Unrecoverable,
 }
 
+impl fmt::Display for TokenizerError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Tokenizer Error")
+    }
+}
+
 impl Tokenizer {
     pub fn new(f: File) -> Self {
         let mut reader = BufReader::new(f);
         let mut byte = [0; 1];
         reader.read_exact(&mut byte);
+        println!("{:?}", byte);
         Tokenizer {
             reader: reader,
             current_byte: byte[0],
         }
     }
 
-    pub fn get_next_token(&self) -> Option<Token> {
+    pub fn get_next_token(&mut self) -> Option<Token> {
         while self.current_byte.is_ascii_whitespace() || self.current_byte == b'\n' {
-            self._read_next_byte();
+            if let Err(e) = self._read_next_byte() {
+                match e {
+                    ReachedEOF => {
+                        return None
+                    },
+                    e => {
+                        panic!("fatal error: {}",  e);
+                    }
+                };
+            }
         }
         match CharClass::from_u8(self.current_byte) {
             CharClass::Digit => {
@@ -111,39 +129,44 @@ impl Tokenizer {
             cc => {
                 match Symbol::try_from(cc) {
                     Ok(sym) => {
-                        Some(Token::Symbol(sym));
+                        self._read_next_byte();
+                        Some(Token::Symbol(sym))
                     },
                     Err(e) => {
-                        panic!("unexpected error occurred while tokenizing: {}", e);
+                        panic!("unexpected error occurred while tokenizing {}: {}", self.current_byte,  e);
                     }
                 }
             }
         }
     }
 
-    fn _read_next_byte(&self) -> Result<(), TokenizerError> {
+    fn _read_next_byte(&mut self) -> Result<(), TokenizerError> {
         let mut one_byte = [0; 1];
         match self.reader.read_exact(&mut one_byte) {
             Ok(_) => {
                 self.current_byte = one_byte[0];
                 Ok(())
             },
-            Err(ErrorKind::UnexpectedEof) => {
-                Err(TokenizerError::ReachedEOF)
-            },
-            Err(_) => {
-                Err(TokenizerError::Unrecoverable)
+            Err(e) => {
+                match e.kind() {
+                    ErrorKind::UnexpectedEof => {
+                        Err(TokenizerError::ReachedEOF)
+                    },
+                    _ => {
+                        Err(TokenizerError::Unrecoverable)
+                    }
+                }
             }
         }
     }
 
-    fn _read_until(&self, b: u8) {
-        let mut skip = vec![];
-        self.reader.read_until(b, &mut skip).unwrap();
-        self.current_byte = skip.last();
+    fn _read_until(&mut self, b: u8) {
+        let mut _skip = vec![];
+        self.reader.read_until(b, &mut _skip).unwrap();
+        self.current_byte = b;
     }
 
-    fn _tokenize_number(&self) -> Token {
+    fn _tokenize_number(&mut self) -> Token {
         let mut digits = vec![self.current_byte];
         loop {
             self._read_next_byte();
@@ -156,7 +179,6 @@ impl Tokenizer {
                 }
             }
         }
-        self._read_next_byte();
 
         let num = digits
             .into_iter()
@@ -166,7 +188,7 @@ impl Tokenizer {
         Token::Number(num)
     }
 
-    fn _tokenize_identifier(&self) -> Token {
+    fn _tokenize_identifier(&mut self) -> Token {
         let mut chars = vec![self.current_byte];
         loop {
             self._read_next_byte();
@@ -179,7 +201,6 @@ impl Tokenizer {
                 }
             }
         }
-        self._read_next_byte();
 
         let word = std::str::from_utf8(&chars).unwrap();
         match Keyword::try_from(word) {
@@ -187,7 +208,7 @@ impl Tokenizer {
                 Token::Keyword(kw)
             },
             Err(_) => {
-                Token::Identifier(word.to_string());
+                Token::Identifier(word.to_string())
             }
         }
     }
@@ -224,21 +245,17 @@ mod tests {
 
         // pair list of full path of *.jack and *T.xml files
         let mut filename_pairs_in_out = vec![]; 
-        let jack_src_path = Path::new("/workspace/Jack-compiler/jack_compiler/jack");
-        for dir in jack_src_path.read_dir().expect("read_dir call failed") {
-            if let Ok(dir) = dir {
-                for f in dir.path().read_dir().expect("read_dir call failed") {
-                    if let Ok(f) = f {
-                        if f.path().extension().unwrap() == "jack" {
-                            let input_filename = f.path().to_string_lossy().into_owned();
-                            let output_filename = dir.path().join(f.path().file_stem().unwrap()).to_string_lossy().into_owned()+"T.xml";
-                            filename_pairs_in_out.push((input_filename, output_filename));
-                        }
-                    }
+        let dir = Path::new("/workspace/pl0dash-compiler/pl0dash_compiler/pl0");
+        for f in dir.read_dir().expect("read_dir call failed") {
+            if let Ok(f) = f {
+                if f.path().extension().unwrap() == "pl0" {
+                    let input_filename = f.path().to_string_lossy().into_owned();
+                    let output_filename = dir.join(f.path().file_stem().unwrap()).to_string_lossy().into_owned()+"T.xml";
+                    filename_pairs_in_out.push((input_filename, output_filename));
                 }
             }
         }
-
+        //println!("{:?}", filename_pairs_in_out);
         // tokenize *.jack, export *T.xml, and compare with *T.xml.org
         for (fin, fout) in filename_pairs_in_out.iter() {
             let input_file = File::open(fin).expect("cannot open input file");
@@ -254,10 +271,10 @@ mod tests {
                     Some(t) => {
                         match t {
                             Token::Keyword(kw) => {
-                                writeln!(w, "<keyword> {} </keyword>", kw.into()).unwrap();
+                                writeln!(w, "<keyword> {:?} </keyword>", kw).unwrap();
                             },
                             Token::Symbol(sym) => {
-                                writeln!(w, "<symbol> {} </symbol>", sym.into()).unwrap();
+                                writeln!(w, "<symbol> {:?} </symbol>", sym).unwrap();
                             },
                             Token::Identifier(s) => {
                                 writeln!(w, "<identifier> {} </identifier>", s).unwrap();
