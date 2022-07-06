@@ -15,7 +15,7 @@ pub enum CharClass {
     Gtr,
     Comma,
     Period,
-    Semicolon,
+    SemiColon,
     Colon,
     Other
 }
@@ -39,7 +39,7 @@ impl CharClass {
             b'<' => CharClass::Lss,
             b'>' => CharClass::Gtr,
             b',' => CharClass::Comma,
-            b'.' => CharClass::Dot,
+            b'.' => CharClass::Period,
             b';' => CharClass::SemiColon,
             b':' => CharClass::Colon,
                _ => CharClass::Other

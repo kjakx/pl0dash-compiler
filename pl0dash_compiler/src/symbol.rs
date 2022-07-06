@@ -31,29 +31,23 @@ impl fmt::Display for UndefinedSymbol {
 }
 
 impl TryFrom<&[u8]> for Symbol {
-    type Err = UndefinedSymbol;
+    type Error = UndefinedSymbol;
 
-    pub fn try_from(b: &[u8]) -> Result<Self, Self::Err> {
+    fn try_from(b: &[u8]) -> Result<Self, Self::Error> {
         match b {
-            b"+"  => Ok(Symbol::Plus),
-            b"-"  => Ok(Symbol::Minus),
-            b"*"  => Ok(Symbol::Asterisk),
-            b"/"  => Ok(Symbol::Slash),
-            b"("  => Ok(Symbol::Lparen),
-            b")"  => Ok(Symbol::Rparen),
-            b"["  => Ok(Symbol::SqParL),
-            b"]"  => Ok(Symbol::SqParR),
-            b"="  => Ok(Symbol::Equal),
-            b"<"  => Ok(Symbol::Lss),
-            b">"  => Ok(Symbol::Gtr),
-            b"<>" => Ok(Symbol::NotEq),
-            b"<=" => Ok(Symbol::LssEq),
-            b">=" => Ok(Symbol::GtrEq),
-            b","  => Ok(Symbol::Comma),
-            b"."  => Ok(Symbol::Period),
-            b";"  => Ok(Symbol::SemiColon),
-            b":=" => Ok(Symbol::Assign)
-                _ => Err(UndefinedSymbol),
+            CharClass::Plus      => Ok(Symbol::Plus),
+            CharClass::Minus     => Ok(Symbol::Minus),
+            CharClass::Aster     => Ok(Symbol::Mult),
+            CharClass::Slash     => Ok(Symbol::Div),
+            CharClass::Lparen    => Ok(Symbol::Lparen),
+            CharClass::Rparen    => Ok(Symbol::Rparen),
+            CharClass::Equal     => Ok(Symbol::Equal),
+            CharClass::Lss       => Ok(Symbol::Lss),
+            CharClass::Gtr       => Ok(Symbol::Gtr),
+            CharClass::Comma     => Ok(Symbol::Comma),
+            CharClass::Period    => Ok(Symbol::Period),
+            CharClass::SemiColon => Ok(Symbol::SemiColon),
+                               _ => Err(UndefinedSymbol),
         }
     }
 }

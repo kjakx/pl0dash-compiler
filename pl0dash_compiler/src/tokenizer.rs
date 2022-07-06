@@ -4,6 +4,7 @@ use std::fs::File;
 use crate::keyword::*;
 use crate::symbol::*;
 use crate::char_class::*;
+use std::convert::TryFrom;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token {
@@ -33,15 +34,12 @@ impl Tokenizer {
         reader.read_exact(&mut byte);
         Tokenizer {
             reader: reader,
-            current_byte: byte,
+            current_byte: byte[0],
         }
     }
 
     pub fn get_next_token(&self) -> Option<Token> {
-        b'\n' => {
-            self.get_next_token()
-        },
-        while self.curent_byte.is_ascii_whitespace() {
+        while self.current_byte.is_ascii_whitespace() || self.current_byte == b'\n' {
             self._read_next_byte();
         }
         match CharClass::from_u8(self.current_byte) {
@@ -91,7 +89,7 @@ impl Tokenizer {
                     }
                 }
             },
-            Char::Slash => {
+            CharClass::Slash => {
                 self._read_next_byte();
                 match CharClass::from_u8(self.current_byte) {
                     CharClass::Aster => { /* comment */
@@ -110,20 +108,14 @@ impl Tokenizer {
                     }
                 }
             },
-            _ => {
-                match Symbol::from_u8(self.current_byte) {
+            cc => {
+                match Symbol::try_from(cc) {
                     Ok(sym) => {
-                        tokens.push(Token::Symbol(sym));
+                        Some(Token::Symbol(sym));
                     },
                     Err(e) => {
                         panic!("unexpected error occurred while tokenizing: {}", e);
                     }
-                }
-            },
-            Err(e) => {
-                match e {
-                    ReachedEOF => None, // reached EOF
-                    _ => panic!("unrecoverable error occurred while tokenizing."),
                 }
             }
         }
@@ -131,23 +123,23 @@ impl Tokenizer {
 
     fn _read_next_byte(&self) -> Result<(), TokenizerError> {
         let mut one_byte = [0; 1];
-        match reader.read_exact(&mut one_byte) {
+        match self.reader.read_exact(&mut one_byte) {
             Ok(_) => {
                 self.current_byte = one_byte[0];
                 Ok(())
             },
-            Err(ErrorKind::UnexpectedEOF) => {
-                Err(ReachedEOF)
+            Err(ErrorKind::UnexpectedEof) => {
+                Err(TokenizerError::ReachedEOF)
             },
             Err(_) => {
-                Err(Unrecoverable)
+                Err(TokenizerError::Unrecoverable)
             }
         }
     }
 
     fn _read_until(&self, b: u8) {
         let mut skip = vec![];
-        self._read_until(b, &mut skip).unwrap();
+        self.reader.read_until(b, &mut skip).unwrap();
         self.current_byte = skip.last();
     }
 

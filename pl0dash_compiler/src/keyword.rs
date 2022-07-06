@@ -28,9 +28,9 @@ pub enum Keyword {
 }
 
 impl TryFrom<&str> for Keyword {
-    type Err = UndefinedKeywordError;
+    type Error = UndefinedKeywordError;
 
-    fn try_from(s: &str) -> Result<Self, Self::Err> {
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
         match s {
             "begin"    => Ok(Keyword::Begin),
             "end"      => Ok(Keyword::End),
