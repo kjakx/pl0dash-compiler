@@ -13,7 +13,6 @@ pub enum Token {
     Symbol(Symbol),
     Identifier(String),
     Number(i32),
-    Undefined
 }
 
 pub struct Tokenizer {
@@ -24,14 +23,31 @@ pub struct Tokenizer {
 #[derive(Debug)]
 pub enum TokenizerError {
     ReachedEOF,
-    NoMoreToken,
     UndefinedToken,
+    CannotReadByte,
+    CommentNotTerminated,
     Unrecoverable,
 }
 
 impl fmt::Display for TokenizerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Tokenizer Error")
+        match self {
+            TokenizerError::ReachedEOF => {
+                write!(f, "Error: Reached EOF")
+            },
+            TokenizerError::UndefinedToken => {
+                write!(f, "Error: Undefined token found")
+            },
+            TokenizerError::CannotReadByte => {
+                write!(f, "Error: Cannot read byte")
+            },
+            TokenizerError::CommentNotTerminated => {
+                write!(f, "Comment Not Terminated")
+            },
+            TokenizerError::Unrecoverable => {
+                write!(f, "Unexpected error occurred")
+            }
+        }
     }
 }
 
@@ -47,35 +63,26 @@ impl Tokenizer {
         }
     }
 
-    pub fn get_next_token(&mut self) -> Option<Token> {
+    pub fn get_next_token(&mut self) -> Result<Token, TokenizerError> {
         while self.current_byte.is_ascii_whitespace() || self.current_byte == b'\n' {
-            if let Err(e) = self._read_next_byte() {
-                match e {
-                    ReachedEOF => {
-                        return None
-                    },
-                    e => {
-                        panic!("fatal error: {}",  e);
-                    }
-                };
-            }
+            self._read_next_byte()?;
         }
         match CharClass::from_u8(self.current_byte) {
             CharClass::Digit => {
-                Some(self._tokenize_number())
+                self._tokenize_number()
             },
             CharClass::Letter => {
-                Some(self._tokenize_identifier())
+                self._tokenize_identifier()
             },
             CharClass::Colon => {
-                self._read_next_byte();
+                self._read_next_byte()?;
                 match CharClass::from_u8(self.current_byte) {
                     CharClass::Equal => {
                         self._read_next_byte();
-                        Some(Token::Symbol(Symbol::Assign))
+                        Ok(Token::Symbol(Symbol::Assign))
                     },
                     _ => {
-                        Some(Token::Undefined)
+                        Err(TokenizerError::UndefinedToken)
                     }
                 }
             },
@@ -84,14 +91,14 @@ impl Tokenizer {
                 match CharClass::from_u8(self.current_byte) {
                     CharClass::Equal => {
                         self._read_next_byte();
-                        Some(Token::Symbol(Symbol::LssEq))
+                        Ok(Token::Symbol(Symbol::LssEq))
                     },
                     CharClass::Gtr => {
                         self._read_next_byte();
-                        Some(Token::Symbol(Symbol::NotEq))
+                        Ok(Token::Symbol(Symbol::NotEq))
                     },
                     _ => {
-                        Some(Token::Symbol(Symbol::Lss))
+                        Ok(Token::Symbol(Symbol::Lss))
                     }
                 }
             },
@@ -100,10 +107,10 @@ impl Tokenizer {
                 match CharClass::from_u8(self.current_byte) {
                     CharClass::Equal => {
                         self._read_next_byte();
-                        Some(Token::Symbol(Symbol::GtrEq))
+                        Ok(Token::Symbol(Symbol::GtrEq))
                     },
                     _ => {
-                        Some(Token::Symbol(Symbol::Gtr))
+                        Ok(Token::Symbol(Symbol::Gtr))
                     }
                 }
             },
@@ -112,17 +119,30 @@ impl Tokenizer {
                 match CharClass::from_u8(self.current_byte) {
                     CharClass::Aster => { /* comment */
                         loop {
-                            self._read_until(b'*');
-                            self._read_next_byte();
-                            if self.current_byte == b'/' {
-                                self._read_next_byte();
-                                break;
+                            match self._read_until(b'*') {
+                                Ok(()) => {
+                                    self._read_next_byte();
+                                    if self.current_byte == b'/' {
+                                        self._read_next_byte();
+                                        break;
+                                    }
+                                },
+                                Err(e) => {
+                                    match e.kind() {
+                                        ErrorKind::UnexpectedEof => {
+                                            return Err(TokenizerError::CommentNotTerminated)
+                                        },
+                                        _ => {
+                                            return Err(TokenizerError::Unrecoverable)
+                                        }
+                                    }
+                                }
                             }
                         }
-                        self.get_next_token()
+                        self.get_next_token() // recursion
                     },
                     _ => {
-                        Some(Token::Symbol(Symbol::Div))
+                        Ok(Token::Symbol(Symbol::Div))
                     }
                 }
             },
@@ -130,10 +150,10 @@ impl Tokenizer {
                 match Symbol::try_from(cc) {
                     Ok(sym) => {
                         self._read_next_byte();
-                        Some(Token::Symbol(sym))
+                        Ok(Token::Symbol(sym))
                     },
-                    Err(e) => {
-                        panic!("unexpected error occurred while tokenizing {}: {}", self.current_byte,  e);
+                    Err(_) => {
+                        Err(TokenizerError::UndefinedToken)
                     }
                 }
             }
@@ -141,10 +161,10 @@ impl Tokenizer {
     }
 
     fn _read_next_byte(&mut self) -> Result<(), TokenizerError> {
-        let mut one_byte = [0; 1];
-        match self.reader.read_exact(&mut one_byte) {
+        let mut byte = [0; 1];
+        match self.reader.read_exact(&mut byte) {
             Ok(_) => {
-                self.current_byte = one_byte[0];
+                self.current_byte = byte[0];
                 Ok(())
             },
             Err(e) => {
@@ -153,31 +173,46 @@ impl Tokenizer {
                         Err(TokenizerError::ReachedEOF)
                     },
                     _ => {
-                        Err(TokenizerError::Unrecoverable)
+                        Err(TokenizerError::CannotReadByte)
                     }
                 }
             }
         }
     }
 
-    fn _read_until(&mut self, b: u8) {
+    fn _read_until(&mut self, b: u8) -> Result<(), std::io::Error>{
         let mut _skip = vec![];
-        self.reader.read_until(b, &mut _skip).unwrap();
+        self.reader.read_until(b, &mut _skip)?;
         self.current_byte = b;
+        Ok(())
     }
 
-    fn _tokenize_number(&mut self) -> Token {
+    fn _tokenize_number(&mut self) -> Result<Token, TokenizerError> {
         let mut digits = vec![self.current_byte];
         loop {
-            self._read_next_byte();
-            match self.current_byte {
-                b'0'..=b'9' => {
-                    digits.push(self.current_byte);
+            match self._read_next_byte() {
+                Ok(_) => {
+                    match self.current_byte {
+                        b'0'..=b'9' => {
+                            digits.push(self.current_byte);
+                        },
+                        _ => {
+                            break;
+                        }
+                    }
                 },
-                _ => {
-                    break;
+                Err(e) => {
+                    match e {
+                        TokenizerError::ReachedEOF => {
+                            break;
+                        },
+                        _ => {
+                            return Err(e);
+                        }
+                    }
                 }
             }
+            
         }
 
         let num = digits
@@ -185,19 +220,32 @@ impl Tokenizer {
             .map(|d| (d - b'0') as i32)
             .fold(0, |acc, d| 10*acc + d);
 
-        Token::Number(num)
+        Ok(Token::Number(num))
     }
 
-    fn _tokenize_identifier(&mut self) -> Token {
+    fn _tokenize_identifier(&mut self) -> Result<Token, TokenizerError> {
         let mut chars = vec![self.current_byte];
         loop {
-            self._read_next_byte();
-            match CharClass::from_u8(self.current_byte) {
-                CharClass::Digit | CharClass::Letter => {
-                    chars.push(self.current_byte);
+            match self._read_next_byte() {
+                Ok(_) => {
+                    match CharClass::from_u8(self.current_byte) {
+                        CharClass::Digit | CharClass::Letter => {
+                            chars.push(self.current_byte);
+                        },
+                        _ => {
+                            break;
+                        }
+                    }
                 },
-                _ => {
-                    break;
+                Err(e) => {
+                    match e {
+                        TokenizerError::ReachedEOF => {
+                            break;
+                        },
+                        _ => {
+                            return Err(e);
+                        }
+                    }
                 }
             }
         }
@@ -205,32 +253,13 @@ impl Tokenizer {
         let word = std::str::from_utf8(&chars).unwrap();
         match Keyword::try_from(word) {
             Ok(kw) => {
-                Token::Keyword(kw)
+                Ok(Token::Keyword(kw))
             },
             Err(_) => {
-                Token::Identifier(word.to_string())
+                Ok(Token::Identifier(word.to_string()))
             }
         }
     }
-/*
-    fn _tokenize_symbol(&self) -> Token {
-
-    }
-
-    fn _peek_next_byte(&self) -> Option<u8> {
-        match reader.fill_buf() {
-            Ok(buf) => {
-                Some(buf[0])
-            },
-            Err(ErrorKind::UnexpectedEOF) => {
-                None
-            },
-            Err(_) => {
-                panic!("unrecoverable error occurred while tokenizing.");
-            }
-        }
-    }
-    */
 }
 
 #[cfg(test)]
@@ -243,7 +272,7 @@ mod tests {
         use std::io::{BufWriter, Write};
         use std::process::Command;
 
-        // pair list of full path of *.jack and *T.xml files
+        // pair list of full path of *.pl0 and *T.xml files
         let mut filename_pairs_in_out = vec![]; 
         let dir = Path::new("/workspace/pl0dash-compiler/pl0dash_compiler/pl0");
         for f in dir.read_dir().expect("read_dir call failed") {
@@ -255,8 +284,7 @@ mod tests {
                 }
             }
         }
-        //println!("{:?}", filename_pairs_in_out);
-        // tokenize *.jack, export *T.xml, and compare with *T.xml.org
+        // tokenize *.pl0, export *T.xml, and compare with *T.xml.org
         for (fin, fout) in filename_pairs_in_out.iter() {
             let input_file = File::open(fin).expect("cannot open input file");
             let mut t = Tokenizer::new(input_file);
@@ -268,7 +296,7 @@ mod tests {
             writeln!(w, "<tokens>").unwrap();
             'export_xml: loop {
                 match t.get_next_token() {
-                    Some(t) => {
+                    Ok(t) => {
                         match t {
                             Token::Keyword(kw) => {
                                 writeln!(w, "<keyword> {:?} </keyword>", kw).unwrap();
@@ -282,12 +310,18 @@ mod tests {
                             Token::Number(i) => {
                                 writeln!(w, "<number> {} </number>", i).unwrap();
                             },
-                            _ => {
-                                panic!("undefined symbol");
-                            }
                         }
                     },
-                    None => { break 'export_xml; }
+                    Err(e) => {
+                        match e {
+                            TokenizerError::ReachedEOF => {
+                                break 'export_xml;
+                            },
+                            _ => {
+                                panic!("{}", e);
+                            }
+                        }
+                    }
                 }
             }
             writeln!(w, "</tokens>").unwrap();
