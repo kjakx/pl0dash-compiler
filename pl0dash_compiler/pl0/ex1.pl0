@@ -7,7 +7,7 @@
         begin
           if odd b then c:=c+a;
           a:=2*a; b:=b/2;
-        end
+        end;
       return c;
     end; 
 

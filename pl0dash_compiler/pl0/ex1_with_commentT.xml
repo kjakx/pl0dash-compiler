@@ -55,6 +55,7 @@
 <number> 2 </number>
 <symbol> SemiColon </symbol>
 <keyword> End </keyword>
+<symbol> SemiColon </symbol>
 <keyword> Ret </keyword>
 <identifier> c </identifier>
 <symbol> SemiColon </symbol>

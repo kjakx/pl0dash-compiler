@@ -12,6 +12,7 @@
 <keyword> Then </keyword>
 <keyword> Ret </keyword>
 <number> 1 </number>
+<symbol> SemiColon </symbol>
 <keyword> Ret </keyword>
 <identifier> n </identifier>
 <symbol> Mult </symbol>
