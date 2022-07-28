@@ -4,6 +4,7 @@ mod symbol;
 //mod engine;
 //mod analyzer;
 mod char_class;
+mod parser;
 
 use std::env;
 use std::path::Path;
