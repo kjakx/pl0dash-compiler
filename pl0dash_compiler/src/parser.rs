@@ -5,7 +5,7 @@ use crate::keyword::*;
 use crate::symbol::*;
 use crate::char_class::*;
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Syntax {
     Program,
     Block,
@@ -20,6 +20,7 @@ pub enum Syntax {
     Token(Token)
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct SyntaxNode {
     syntax: Syntax,
     children: Vec<SyntaxNode>,
@@ -33,8 +34,8 @@ impl SyntaxNode {
         }
     }
 
-    fn get_syntax(&self) -> Syntax {
-        self.syntax
+    fn get_ref_syntax(&self) -> &Syntax {
+        &self.syntax
     }
 
     fn append_child(&mut self, child: SyntaxNode) {
@@ -50,50 +51,20 @@ impl SyntaxNode {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct SyntaxTree {
     root: SyntaxNode
 }
 
 impl SyntaxTree {
-    fn new(syntax_node: SyntaxNode) -> Self {
+    fn new(root: SyntaxNode) -> Self {
         SyntaxTree {
-            syntax_node
+            root
         }
     }
 
     fn get_ref_root(&self) -> &SyntaxNode {
-        &root
-    }
-}
-
-struct SyntaxTreeVisitor<'a> {
-    depth: usize,
-    current_node: &'a SyntaxNode,
-}
-
-impl SyntaxTreeVisitor {
-    fn new(node: &'a SyntaxNode) -> Self {
-        current_node: node
-    }
-
-    fn visit(&mut self) {
-        let current_syntax = *current_node.get_syntax();
-        self.print_indent();
-        println!("<{:?}>", current_syntax);
-        self.depth += 1;
-        for child in current_node.get_ref_children().iter() {
-            self.current_node = *child;
-            self.visit();
-        }
-        self.depth -= 1;
-        self.print_indent();
-        println!("</{:?}>", current_syntax());
-    }
-
-    fn print_indent(&self) {
-        for i in 0..self.depth {
-            print!(" ");
-        }
+        &self.root
     }
 }
 
@@ -103,14 +74,16 @@ pub struct Parser {
 }
 
 impl Parser {
-    pub fn new(t: Tokenizer) -> Self {
-        Engine {
+    pub fn new(mut t: Tokenizer) -> Self {
+        let token = t.get_next_token().unwrap();
+        Parser {
             tokenizer: t,
-            current_token: t.get_next_token(),
+            current_token: token,
         }
     }
     
     pub fn parse(&mut self) -> SyntaxTree {
+        println!("parsing...");
         SyntaxTree::new(self.parse_program())
     }
 
@@ -121,21 +94,21 @@ impl Parser {
         node
     }
 
-    fn compile_block(&mut self) -> SyntaxNode {
+    fn parse_block(&mut self) -> SyntaxNode {
         let mut node = SyntaxNode::new(Syntax::Block);
         loop {
             let child = match self.current_token {
                 Token::Keyword(Keyword::Const) => {
-                /    self.current_token = self.tokenizer.get_next_token();
-                    parse_const_decl()
+                    self.current_token = self.tokenizer.get_next_token().unwrap();
+                    self.parse_const_decl()
                 },
                 Token::Keyword(Keyword::Var) => {
-                    self.current_token = self.tokenizer.get_next_token();
-                    parse_var_decl()
+                    self.current_token = self.tokenizer.get_next_token().unwrap();
+                    self.parse_var_decl()
                 },
-                Token::Keyword(Keyword::Function) => {
-                    self.current_token = self.tokenizer.get_next_token();
-                    parse_func_decl()
+                Token::Keyword(Keyword::Func) => {
+                    self.current_token = self.tokenizer.get_next_token().unwrap();
+                    self.parse_func_decl()
                 },
                 _ => {
                     break;
@@ -143,18 +116,18 @@ impl Parser {
             };
             node.append_child(child);
         }
-        node.append_child(parse_statement());
+        node.append_child(self.parse_statement());
         node
     }
     
     fn parse_const_decl(&mut self) -> SyntaxNode {
         let mut node = SyntaxNode::new(Syntax::ConstDecl);
-        node.append_child(SyntaxNode::Token(Token::Keyword(Keyword::Const))); // const
+        node.append_child(SyntaxNode::new(Syntax::Token(Token::Keyword(Keyword::Const)))); // const
         loop {
             node.append_child(self.parse_token()); // ident
             node.append_child(self.parse_token()); // =
             node.append_child(self.parse_token()); // number
-            if let Token::Symbol(Symbol::Comma) = self.current_token {
+            if Token::Symbol(Symbol::Comma) == self.current_token {
                 node.append_child(self.parse_token()); // ,
             } else {
                 break;
@@ -166,10 +139,10 @@ impl Parser {
 
     fn parse_var_decl(&mut self) -> SyntaxNode {
         let mut node = SyntaxNode::new(Syntax::VarDecl);
-        node.append_child(SyntaxNode::Token(Token::Keyword(Keyword::Var))); // var
+        node.append_child(SyntaxNode::new(Syntax::Token(Token::Keyword(Keyword::Var)))); // var
         loop {
             node.append_child(self.parse_token()); // ident
-            if let Token::Symbol(Symbol::Comma) = self.current_token {
+            if Token::Symbol(Symbol::Comma) == self.current_token {
                 node.append_child(self.parse_token()); // ,
             } else {
                 break;
@@ -181,12 +154,12 @@ impl Parser {
 
     fn parse_func_decl(&mut self) -> SyntaxNode {
         let mut node = SyntaxNode::new(Syntax::FuncDecl);
-        node.append_child(SyntaxNode::Token(Token::Keyword(Keyword::Function))); // function
+        node.append_child(SyntaxNode::new(Syntax::Token(Token::Keyword(Keyword::Func)))); // function
         node.append_child(self.parse_token()); // ident
         node.append_child(self.parse_token()); // '('
         while let Token::Identifier(_) = self.current_token {
             node.append_child(self.parse_token()); // ident
-            if let Token::Symbol(Symbol::Comma) = self.current_token {
+            if Token::Symbol(Symbol::Comma) == self.current_token {
                 node.append_child(self.parse_token()); // ,
             } else {
                 break;
@@ -210,7 +183,7 @@ impl Parser {
                 node.append_child(self.parse_token()); // begin
                 loop {
                     node.append_child(self.parse_statement());
-                    if let Token::Symbol(Symbol::Semicolon) = self.current_token {
+                    if Token::Symbol(Symbol::SemiColon) == self.current_token {
                         node.append_child(self.parse_token()); // ;
                     } else {
                         break;
@@ -230,7 +203,7 @@ impl Parser {
                 node.append_child(self.parse_token()); // do
                 node.append_child(self.parse_statement());
             },
-            Token::Keyword(Keyword::Return) => {
+            Token::Keyword(Keyword::Ret) => {
                 node.append_child(self.parse_token()); // return
                 node.append_child(self.parse_expression());
             },
@@ -250,7 +223,7 @@ impl Parser {
 
     fn parse_condition(&mut self) -> SyntaxNode {
         let mut node = SyntaxNode::new(Syntax::Condition);
-        if let Token::Keyword(Keyword::Odd) = self.current_token {
+        if Token::Keyword(Keyword::Odd) == self.current_token {
             node.append_child(self.parse_token()); // odd
             node.append_child(self.parse_expression());
         } else {
@@ -258,6 +231,7 @@ impl Parser {
             node.append_child(self.parse_token()); // bool op.
             node.append_child(self.parse_expression());
         }
+        node
     }
 
     fn parse_expression(&mut self) -> SyntaxNode {
@@ -284,6 +258,8 @@ impl Parser {
                         break;
                     }
                 }
+            } else {
+                break;
             }
         }
         node
@@ -303,14 +279,17 @@ impl Parser {
                         break;
                     }
                 }
+            } else {
+                break;
             }
         }
+        node
     }
 
     fn parse_factor(&mut self) -> SyntaxNode {
         let mut node = SyntaxNode::new(Syntax::Factor);
         match self.current_token {
-            Token::Identifier => {
+            Token::Identifier(_) => {
                 node.append_child(self.parse_token()); // ident
                 if Token::Symbol(Symbol::Lparen) == self.current_token {
                     node.append_child(self.parse_token()); // '('
@@ -327,13 +306,16 @@ impl Parser {
                     node.append_child(self.parse_token()); // ')'
                 }
             },
-            Token::Number => {
+            Token::Number(_) => {
                 node.append_child(self.parse_token()); // number
             },
-            Token::Symbol => {
+            Token::Symbol(_) => {
                 node.append_child(self.parse_token()); // '('
                 node.append_child(self.parse_expression());
                 node.append_child(self.parse_token()); // ')'
+            },
+            _ => {
+                panic!("syntax error");
             }
         }
         node
@@ -341,7 +323,7 @@ impl Parser {
 
     fn parse_token(&mut self) -> SyntaxNode {
         let mut node = SyntaxNode::new(Syntax::Token(self.current_token.clone()));
-        self.current_token = self.tokenizer.get_next_token();
+        self.current_token = self.tokenizer.get_next_token().unwrap();
         node
     }
 }
@@ -349,7 +331,7 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn test_no_expression_case() {
+    fn test_parse() {
         use super::*;
         use std::path::Path;
         use std::fs::File;
@@ -357,77 +339,34 @@ mod tests {
         use std::process::Command;
         use crate::tokenizer::*;
 
-        // pair list of full path of *.jack and *.xml files
-        let mut filename_pairs_in_out = vec![]; 
-        let jack_src_path = Path::new("/workspace/Jack-compiler/jack_compiler/jack/ExpressionLessSquare");
-        for f in jack_src_path.read_dir().expect("read_dir call failed") {
+        // pair list of full path of *.pl0
+        let mut filenames_input = vec![]; 
+        let src_path = Path::new("/workspace/pl0dash-compiler/pl0dash_compiler/pl0/");
+        for f in src_path.read_dir().expect("read_dir call failed") {
             if let Ok(f) = f {
-                if f.path().extension().unwrap() == "jack" {
+                if f.path().extension().unwrap() == "pl0" {
                     let input_filename = f.path().to_string_lossy().into_owned();
-                    let output_filename = f.path().with_extension("xml").to_string_lossy().into_owned();
-                    filename_pairs_in_out.push((input_filename, output_filename));
+                    filenames_input.push(input_filename);
                 }
             }
         }
 
-        // compile *.jack, export *.xml, and compare with *.xml.org
-        for (fin, fout) in filename_pairs_in_out.iter() {
+        // parse *.pl0 and show the syntax trees
+        for fin in filenames_input.iter() {
             // tokenize
             let input_file = File::open(fin).expect("cannot open input file");
             let mut t = Tokenizer::new(input_file);
             
-            // compile
-            let output_file = File::create(fout).expect("cannot open output file");
-            let mut e = Engine::new(t, output_file);
-            e.compile();
+            // parse
+            let mut p = Parser::new(t);
+            let syn_tree = p.parse();
+            println!("parse finished. printing syn_tree...");
+            println!("{:?}", syn_tree);
 
             // compare two files
-            let forg = Path::new(fout).with_extension("xml.org").to_string_lossy().into_owned();
-            let diff_status = Command::new("diff").args(["-b", "-u", "-w", &fout, &forg]).status().expect("failed to execute process");
-            assert!(diff_status.success());
-        }
-    }
-
-    #[test]
-    fn test_expression_case() {
-        use super::*;
-        use std::path::Path;
-        use std::fs::File;
-        use std::io::{BufWriter, Write};
-        use std::process::Command;
-        use crate::tokenizer::*;
-
-        // pair list of full path of *.jack and *.xml files
-        let mut filename_pairs_in_out = vec![]; 
-        let square_path = Path::new("/workspace/Jack-compiler/jack_compiler/jack/Square");
-        let array_test_path = Path::new("/workspace/Jack-compiler/jack_compiler/jack/ArrayTest");
-        for d in [square_path, array_test_path].into_iter() {
-            for f in d.read_dir().expect("read_dir call failed") {
-                if let Ok(f) = f {
-                    if f.path().extension().unwrap() == "jack" {
-                        let input_filename = f.path().to_string_lossy().into_owned();
-                        let output_filename = f.path().with_extension("xml").to_string_lossy().into_owned();
-                        filename_pairs_in_out.push((input_filename, output_filename));
-                    }
-                }
-            }
-        }
-
-        // compile *.jack, export *.xml, and compare with *.xml.org
-        for (fin, fout) in filename_pairs_in_out.iter() {
-            // tokenize
-            let input_file = File::open(fin).expect("cannot open input file");
-            let mut t = Tokenizer::new(input_file);
-            
-            // compile
-            let output_file = File::create(fout).expect("cannot open output file");
-            let mut e = Engine::new(t, output_file);
-            e.compile();
-
-            // compare two files
-            let forg = Path::new(fout).with_extension("xml.org").to_string_lossy().into_owned();
-            let diff_status = Command::new("diff").args(["-b", "-u", "-w", &fout, &forg]).status().expect("failed to execute process");
-            assert!(diff_status.success());
+            //let forg = Path::new(fout).with_extension("xml.org").to_string_lossy().into_owned();
+            //let diff_status = Command::new("diff").args(["-b", "-u", "-w", &fout, &forg]).status().expect("failed to execute process");
+            //assert!(diff_status.success());
         }
     }
 }
