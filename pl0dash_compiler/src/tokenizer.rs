@@ -55,8 +55,8 @@ impl Tokenizer {
     pub fn new(f: File) -> Self {
         let mut reader = BufReader::new(f);
         let mut byte = [0; 1];
-        reader.read_exact(&mut byte);
-        println!("{:?}", byte);
+        reader.read_exact(&mut byte).unwrap();
+
         Tokenizer {
             reader: reader,
             current_byte: byte[0],
@@ -78,7 +78,7 @@ impl Tokenizer {
                 self._read_next_byte()?;
                 match CharClass::from_u8(self.current_byte) {
                     CharClass::Equal => {
-                        self._read_next_byte();
+                        self._read_next_byte()?;
                         Ok(Token::Symbol(Symbol::Assign))
                     },
                     _ => {
@@ -87,14 +87,14 @@ impl Tokenizer {
                 }
             },
             CharClass::Lss => {
-                self._read_next_byte();
+                self._read_next_byte()?;
                 match CharClass::from_u8(self.current_byte) {
                     CharClass::Equal => {
-                        self._read_next_byte();
+                        self._read_next_byte()?;
                         Ok(Token::Symbol(Symbol::LssEq))
                     },
                     CharClass::Gtr => {
-                        self._read_next_byte();
+                        self._read_next_byte()?;
                         Ok(Token::Symbol(Symbol::NotEq))
                     },
                     _ => {
@@ -103,10 +103,10 @@ impl Tokenizer {
                 }
             },
             CharClass::Gtr => {
-                self._read_next_byte();
+                self._read_next_byte()?;
                 match CharClass::from_u8(self.current_byte) {
                     CharClass::Equal => {
-                        self._read_next_byte();
+                        self._read_next_byte()?;
                         Ok(Token::Symbol(Symbol::GtrEq))
                     },
                     _ => {
@@ -115,15 +115,15 @@ impl Tokenizer {
                 }
             },
             CharClass::Slash => {
-                self._read_next_byte();
+                self._read_next_byte()?;
                 match CharClass::from_u8(self.current_byte) {
                     CharClass::Aster => { /* comment */
                         loop {
                             match self._read_until(b'*') {
                                 Ok(()) => {
-                                    self._read_next_byte();
+                                    self._read_next_byte()?;
                                     if self.current_byte == b'/' {
-                                        self._read_next_byte();
+                                        self._read_next_byte()?;
                                         break;
                                     }
                                 },
@@ -149,7 +149,7 @@ impl Tokenizer {
             cc => {
                 match Symbol::try_from(cc) {
                     Ok(sym) => {
-                        self._read_next_byte();
+                        self._read_next_byte(); // possibly final byte (if sym is a period)
                         Ok(Token::Symbol(sym))
                     },
                     Err(_) => {
