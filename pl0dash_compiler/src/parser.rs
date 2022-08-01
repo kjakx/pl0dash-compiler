@@ -96,7 +96,7 @@ impl Parser {
     fn parse_program(&mut self) -> SyntaxNode {
         let mut node = SyntaxNode::new(Syntax::Program);
         node.append_child(self.parse_block());
-        node.append_child(self.parse_token()); // .
+        node.append_child(self.parse_token_expect(Token::Symbol(Symbol::Period)));
         node
     }
 
@@ -128,15 +128,15 @@ impl Parser {
         node.append_child(self.parse_token()); // const
         loop {
             node.append_child(self.parse_token()); // ident
-            node.append_child(self.parse_token_expect(Token::Symbol(Symbol::Equal))); // =
+            node.append_child(self.parse_token_expect(Token::Symbol(Symbol::Equal)));
             node.append_child(self.parse_token()); // number
             if Token::Symbol(Symbol::Comma) == self.current_token {
-                node.append_child(self.parse_token_expect(Token::Symbol(Symbol::Comma))); // ,
+                node.append_child(self.parse_token()); // ,
             } else {
                 break;
             }
         }
-        node.append_child(self.parse_token()); // ;
+        node.append_child(self.parse_token_expect(Token::Symbol(Symbol::SemiColon)));
         node
     }
 
@@ -146,31 +146,31 @@ impl Parser {
         loop {
             node.append_child(self.parse_token()); // ident
             if Token::Symbol(Symbol::Comma) == self.current_token {
-                node.append_child(self.parse_token_expect(Token::Symbol(Symbol::Comma))); // ,
+                node.append_child(self.parse_token()); // ,
             } else {
                 break;
             }
         }
-        node.append_child(self.parse_token()); // ;
+        node.append_child(self.parse_token_expect(Token::Symbol(Symbol::SemiColon)));
         node
     }
 
     fn parse_func_decl(&mut self) -> SyntaxNode {
         let mut node = SyntaxNode::new(Syntax::FuncDecl);
-        node.append_child(self.parse_token_expect(Token::Keyword(Keyword::Func))); // function
+        node.append_child(self.parse_token()); // function
         node.append_child(self.parse_token()); // ident
-        node.append_child(self.parse_token_expect(Token::Symbol(Symbol::Lparen))); // '('
+        node.append_child(self.parse_token_expect(Token::Symbol(Symbol::Lparen)));
         while let Token::Identifier(_) = self.current_token {
             node.append_child(self.parse_token()); // ident
             if Token::Symbol(Symbol::Comma) == self.current_token {
-                node.append_child(self.parse_token_expect(Token::Symbol(Symbol::Comma))); // ,
+                node.append_child(self.parse_token()); // ,
             } else {
                 break;
             }
         }
-        node.append_child(self.parse_token_expect(Token::Symbol(Symbol::Rparen))); // ')'
+        node.append_child(self.parse_token_expect(Token::Symbol(Symbol::Rparen)));
         node.append_child(self.parse_block());
-        node.append_child(self.parse_token_expect(Token::Symbol(Symbol::SemiColon))); // ;
+        node.append_child(self.parse_token_expect(Token::Symbol(Symbol::SemiColon)));
         node
     }
 
@@ -179,11 +179,11 @@ impl Parser {
         match self.current_token {
             Token::Identifier(_) => {
                 node.append_child(self.parse_token()); // ident
-                node.append_child(self.parse_token_expect(Token::Symbol(Symbol::Assign))); // :=
+                node.append_child(self.parse_token_expect(Token::Symbol(Symbol::Assign)));
                 node.append_child(self.parse_expression());
             },
             Token::Keyword(Keyword::Begin) => {
-                node.append_child(self.parse_token_expect(Token::Keyword(Keyword::Begin))); // begin
+                node.append_child(self.parse_token_expect(Token::Keyword(Keyword::Begin)));
                 loop {
                     node.append_child(self.parse_statement());
                     if Token::Symbol(Symbol::SemiColon) == self.current_token {
@@ -192,7 +192,7 @@ impl Parser {
                         break;
                     }
                 }
-                node.append_child(self.parse_token_expect(Token::Keyword(Keyword::End))); // end
+                node.append_child(self.parse_token_expect(Token::Keyword(Keyword::End)));
             },
             Token::Keyword(Keyword::If) => {
                 node.append_child(self.parse_token()); // if
@@ -225,7 +225,7 @@ impl Parser {
     fn parse_condition(&mut self) -> SyntaxNode {
         let mut node = SyntaxNode::new(Syntax::Condition);
         if Token::Keyword(Keyword::Odd) == self.current_token {
-            node.append_child(self.parse_token()); // odd
+            node.append_child(self.parse_token_expect(Token::Keyword(Keyword::Odd)));
             node.append_child(self.parse_expression());
         } else {
             node.append_child(self.parse_expression());
@@ -283,16 +283,16 @@ impl Parser {
             Token::Identifier(_) => {
                 node.append_child(self.parse_token()); // ident
                 if Token::Symbol(Symbol::Lparen) == self.current_token {
-                    node.append_child(self.parse_token()); // '('
+                    node.append_child(self.parse_token_expect(Token::Symbol(Symbol::Lparen)));
                     while Token::Symbol(Symbol::Rparen) != self.current_token {
                         node.append_child(self.parse_expression());
                         if Token::Symbol(Symbol::Comma) == self.current_token {
-                            node.append_child(self.parse_token()); // ,
+                            node.append_child(self.parse_token_expect(Token::Symbol(Symbol::Comma)));
                         } else {
                             break;
                         }
                     }
-                    node.append_child(self.parse_token()); // ')'
+                    node.append_child(self.parse_token_expect(Token::Symbol(Symbol::Rparen)));
                 }
             },
             Token::Number(_) => {
@@ -324,7 +324,7 @@ impl Parser {
             Ok(t) => {
                 self.current_token = t;
             },
-            Err(ReachedEOF) => (),
+            Err(TokenizerError::ReachedEOF) => (),
             _ => {
                 panic!("unexpected error");
             }
@@ -366,7 +366,7 @@ mod tests {
             let mut p = Parser::new(t);
             let syn_tree = p.parse();
             println!("parse finished. printing syn_tree...");
-            //println!("{:?}", syn_tree);
+            println!("{:?}", syn_tree);
 
             // compare two files
             //let forg = Path::new(fout).with_extension("xml.org").to_string_lossy().into_owned();
