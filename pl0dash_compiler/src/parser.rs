@@ -225,7 +225,7 @@ impl Parser {
     fn parse_condition(&mut self) -> SyntaxNode {
         let mut node = SyntaxNode::new(Syntax::Condition);
         if Token::Keyword(Keyword::Odd) == self.current_token {
-            node.append_child(self.parse_token_expect(Token::Keyword(Keyword::Odd)));
+            node.append_child(self.parse_token()); // odd
             node.append_child(self.parse_expression());
         } else {
             node.append_child(self.parse_expression());
@@ -283,11 +283,11 @@ impl Parser {
             Token::Identifier(_) => {
                 node.append_child(self.parse_token()); // ident
                 if Token::Symbol(Symbol::Lparen) == self.current_token {
-                    node.append_child(self.parse_token_expect(Token::Symbol(Symbol::Lparen)));
+                    node.append_child(self.parse_token()); // (
                     while Token::Symbol(Symbol::Rparen) != self.current_token {
                         node.append_child(self.parse_expression());
                         if Token::Symbol(Symbol::Comma) == self.current_token {
-                            node.append_child(self.parse_token_expect(Token::Symbol(Symbol::Comma)));
+                            node.append_child(self.parse_token());
                         } else {
                             break;
                         }
@@ -299,7 +299,7 @@ impl Parser {
                 node.append_child(self.parse_token()); // number
             },
             Token::Symbol(Symbol::Lparen) => {
-                node.append_child(self.parse_token_expect(Token::Symbol(Symbol::Lparen)));
+                node.append_child(self.parse_token()); // (
                 node.append_child(self.parse_expression());
                 node.append_child(self.parse_token_expect(Token::Symbol(Symbol::Rparen)));
             },
