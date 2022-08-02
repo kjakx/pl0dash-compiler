@@ -183,7 +183,7 @@ impl Parser {
                 node.append_child(self.parse_expression());
             },
             Token::Keyword(Keyword::Begin) => {
-                node.append_child(self.parse_token_expect(Token::Keyword(Keyword::Begin)));
+                node.append_child(self.parse_token()); // begin
                 loop {
                     node.append_child(self.parse_statement());
                     if Token::Symbol(Symbol::SemiColon) == self.current_token {
