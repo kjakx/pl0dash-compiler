@@ -287,7 +287,7 @@ impl Parser {
                     while Token::Symbol(Symbol::Rparen) != self.current_token {
                         node.append_child(self.parse_expression());
                         if Token::Symbol(Symbol::Comma) == self.current_token {
-                            node.append_child(self.parse_token());
+                            node.append_child(self.parse_token()); // ,
                         } else {
                             break;
                         }
