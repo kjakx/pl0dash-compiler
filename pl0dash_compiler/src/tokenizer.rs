@@ -118,27 +118,7 @@ impl Tokenizer {
                 self._read_next_byte()?;
                 match CharClass::from_u8(self.current_byte) {
                     CharClass::Aster => { /* comment */
-                        loop {
-                            match self._read_until(b'*') {
-                                Ok(()) => {
-                                    self._read_next_byte()?;
-                                    if self.current_byte == b'/' {
-                                        self._read_next_byte()?;
-                                        break;
-                                    }
-                                },
-                                Err(e) => {
-                                    match e.kind() {
-                                        ErrorKind::UnexpectedEof => {
-                                            return Err(TokenizerError::CommentNotTerminated)
-                                        },
-                                        _ => {
-                                            return Err(TokenizerError::Unrecoverable)
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        self._skip_comment()?;
                         self.get_next_token() // recursion
                     },
                     _ => {
@@ -212,7 +192,6 @@ impl Tokenizer {
                     }
                 }
             }
-            
         }
 
         let num = digits
@@ -259,6 +238,31 @@ impl Tokenizer {
                 Ok(Token::Identifier(word.to_string()))
             }
         }
+    }
+
+    fn _skip_comment(&mut self) -> Result<(), TokenizerError> {
+        loop {
+            match self._read_until(b'*') {
+                Ok(()) => {
+                    self._read_next_byte()?;
+                    if self.current_byte == b'/' {
+                        self._read_next_byte()?;
+                        break;
+                    }
+                },
+                Err(e) => {
+                    match e.kind() {
+                        ErrorKind::UnexpectedEof => {
+                            return Err(TokenizerError::CommentNotTerminated)
+                        },
+                        _ => {
+                            return Err(TokenizerError::Unrecoverable)
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 }
 
